@@ -37,7 +37,7 @@
     const sb = window.supabase.createClient('https://chahhgdyjkjzzbiyvdsk.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYWhoZ2R5amtqenpiaXl2ZHNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4OTM3NzksImV4cCI6MjEwMTQ2OTc3OX0.B48Bv0HXb3KRjplLgc0Gmm_iVE-Ni8LD9OjZkLshfXw');
     function fmt(d){const dt=new Date(d);return dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日';}
     async function load(){
-      const id=location.pathname.replace(/^\//,'').split('/')[0];
+      const id=new URLSearchParams(location.search).get('id')||'';
       const badge=document.querySelector('.badge'),icon=document.querySelector('.icon');
       if(!id||id.length<10){document.getElementById('name').textContent='無効なURLです';badge.className='badge expired';badge.textContent='確認不可';icon.textContent='❌';return;}
       const{data,error}=await sb.from('restaurant_certificates').select('*').eq('id',id).single();
