@@ -1,0 +1,57 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>認定レストラン確認 | 日本野菜ソムリエ協会</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Hiragino Kaku Gothic ProN', sans-serif; background: #f5f0e8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: white; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.10); max-width: 480px; width: 100%; padding: 40px 36px; text-align: center; }
+    .logo { font-size: 13px; color: #888; letter-spacing: 0.1em; margin-bottom: 24px; }
+    .badge { display: inline-block; font-size: 12px; font-weight: bold; padding: 4px 16px; border-radius: 20px; margin-bottom: 20px; }
+    .badge.valid { background: #e6f4ea; color: #2d7a3a; }
+    .badge.expired { background: #fce8e8; color: #c0392b; }
+    .badge.loading { background: #eee; color: #999; }
+    h1 { font-size: 22px; color: #2c2c2c; margin-bottom: 8px; font-weight: 700; }
+    .label { font-size: 12px; color: #aaa; margin-bottom: 4px; margin-top: 20px; }
+    .value { font-size: 16px; color: #333; font-weight: 500; }
+    .divider { border: none; border-top: 1px solid #eee; margin: 28px 0; }
+    .footer { font-size: 11px; color: #bbb; margin-top: 28px; }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">日本野菜ソムリエ協会</div>
+    <div class="icon">🔍</div>
+    <div class="badge loading">確認中...</div>
+    <h1 id="name">読み込み中</h1>
+    <div class="label">有効期間</div>
+    <div class="value" id="period">—</div>
+    <hr class="divider" />
+    <div class="footer">このページは認定レストランの有効性確認用です。</div>
+  </div>
+  <script>
+    const sb = window.supabase.createClient('https://chahhgdyjkjzzbiyvdsk.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYWhoZ2R5amtqenpiaXl2ZHNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4OTM3NzksImV4cCI6MjEwMTQ2OTc3OX0.B48Bv0HXb3KRjplLgc0Gmm_iVE-Ni8LD9OjZkLshfXw');
+    function fmt(d){const dt=new Date(d);return dt.getFullYear()+'年'+(dt.getMonth()+1)+'月'+dt.getDate()+'日';}
+    async function load(){
+      const id=location.pathname.replace(/^\//,'').split('/')[0];
+      const badge=document.querySelector('.badge'),icon=document.querySelector('.icon');
+      if(!id||id.length<10){document.getElementById('name').textContent='無効なURLです';badge.className='badge expired';badge.textContent='確認不可';icon.textContent='❌';return;}
+      const{data,error}=await sb.from('restaurant_certificates').select('*').eq('id',id).single();
+      if(error||!data){document.getElementById('name').textContent='認定情報が見つかりません';badge.className='badge expired';badge.textContent='未登録';icon.textContent='❌';return;}
+      const today=new Date();today.setHours(0,0,0,0);
+      const isValid=new Date(data.valid_until)>=today;
+      document.getElementById('name').textContent=data.restaurant_name;
+      document.getElementById('period').textContent=fmt(data.valid_from)+' 〜 '+fmt(data.valid_until);
+      badge.className='badge '+(isValid?'valid':'expired');
+      badge.textContent=isValid?'✓ 認定有効':'期限切れ';
+      icon.textContent=isValid?'🏅':'⚠️';
+      document.title=data.restaurant_name+' | 認定レストラン確認';
+    }
+    load();
+  </script>
+</body>
+</html>
