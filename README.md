@@ -41,7 +41,6 @@ anon keyは公開しても安全（Supabaseの設計上、RLSで保護されて�
 ### 3. ローカル確認
 
 ```bash
-# シンプルなHTTPサーバーで確認
 npx serve .
 # または index.html をブラウザで直接開く
 ```
