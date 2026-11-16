@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>認定レストラン確認 | 日本野菜ソムリエ協会</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Hiragino Kaku Gothic ProN', sans-serif; background: #f5f0e8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -12,36 +13,177 @@
     .logo { font-size: 13px; color: #888; letter-spacing: 0.1em; margin-bottom: 24px; }
     .icon { font-size: 48px; margin-bottom: 16px; }
     p { color: #666; font-size: 14px; line-height: 1.8; }
+    .btn { display: inline-block; margin-top: 20px; padding: 10px 24px; background: #3D6B35; color: white; border-radius: 4px; font-size: 14px; text-decoration: none; cursor: pointer; border: none; }
+    .btn:hover { background: #2e5228; }
+    .progress { font-size: 12px; color: #aaa; margin-top: 12px; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">日本野菜ソムリエ協会</div>
-    <div class="icon">🔄</div>
-    <p>転送中です。しばらくお待ちください...</p>
+    <div class="icon" id="icon">🔄</div>
+    <p id="msg">読み込み中...</p>
+    <p class="progress" id="progress"></p>
+    <div id="actions"></div>
   </div>
+
   <script>
-    const sb = window.supabase.createClient(
-      'https://chahhgdyjkjzzbiyvdsk.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYWhoZ2R5amtqenpiaXl2ZHNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4OTM3NzksImV4cCI6MjEwMTQ2OTc3OX0.B48Bv0HXb3KRjplLgc0Gmm_iVE-Ni8LD9OjZkLshfXw'
-    );
+    const SUPABASE_URL = 'https://chahhgdyjkjzzbiyvdsk.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYWhoZ2R5amtqenpiaXl2ZHNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4OTM3NzksImV4cCI6MjEwMTQ2OTc3OX0.B48Bv0HXb3KRjplLgc0Gmm_iVE-Ni8LD9OjZkLshfXw';
+    const STORAGE = `${SUPABASE_URL}/storage/v1/object/public/Certificate1016`;
+    const CERT_URL = location.origin;
+
+    const TEMPLATES = {
+      cafe:       `${STORAGE}/cafe_template.png`,
+      restaurant: `${STORAGE}/restaurant_template.png`,
+    };
+
+    const DEFAULT_LAYOUT = {
+      name:   { x: 83.0, y: 37.8, anchor: 'right'  },
+      number: { x: 72.0, y: 44.8, anchor: 'center' },
+      qr:     { x: 37.5, y: 69.0, anchor: 'left'   },
+    };
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    function qrApiUrl(id) {
+      return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${CERT_URL}/?id=${id}`)}`;
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('画像読み込み失敗: ' + src));
+        img.src = src;
+      });
+    }
+
+    function setProgress(text) {
+      document.getElementById('progress').textContent = text;
+    }
+
+    async function generatePDF(cert) {
+      const { data: layoutData } = await sb
+        .from('cert_layout_settings')
+        .select('layout_json')
+        .eq('cert_type', cert.cert_type || 'cafe')
+        .maybeSingle();
+      const L = layoutData?.layout_json ?? DEFAULT_LAYOUT;
+
+      setProgress('テンプレートを読み込み中...');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const tmpl = await loadImage(TEMPLATES[cert.cert_type] || TEMPLATES.cafe);
+      canvas.width  = tmpl.naturalWidth;
+      canvas.height = tmpl.naturalHeight;
+      ctx.drawImage(tmpl, 0, 0);
+
+      const W = canvas.width, H = canvas.height;
+
+      // 店舗名
+      const nameFontSize = Math.round(W * 0.042);
+      ctx.font = `bold ${nameFontSize}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
+      ctx.fillStyle = '#222';
+      ctx.textAlign = L.name.anchor;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cert.restaurant_name, W * (L.name.x / 100), H * (L.name.y / 100));
+
+      // 認定ナンバー
+      if (cert.cert_number) {
+        ctx.font = `${Math.round(W * 0.028)}px 'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif`;
+        ctx.fillStyle = '#555';
+        ctx.textAlign = L.number.anchor;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cert.cert_number, W * (L.number.x / 100), H * (L.number.y / 100));
+      }
+
+      setProgress('QRコードを生成中...');
+      const qrImg = await loadImage(qrApiUrl(cert.id));
+      const qrSize = W * 0.148;
+      const qrX = W * (L.qr.x / 100) - (L.qr.anchor === 'center' ? qrSize/2 : L.qr.anchor === 'right' ? qrSize : 0);
+      ctx.drawImage(qrImg, qrX, H * (L.qr.y / 100), qrSize, qrSize);
+
+      setProgress('PDFを生成中...');
+      const pngBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const pngBuf  = await pngBlob.arrayBuffer();
+
+      const { PDFDocument } = PDFLib;
+      const pdfDoc  = await PDFDocument.create();
+      const page    = pdfDoc.addPage([595, 842]);
+      const pngEmbed = await pdfDoc.embedPng(pngBuf);
+      page.drawImage(pngEmbed, { x: 0, y: 0, width: 595, height: 842 });
+
+      return await pdfDoc.save();
+    }
+
     async function load() {
-      const id = new URLSearchParams(location.search).get('id') || '';
-      const icon = document.querySelector('.icon');
-      const msg  = document.querySelector('p');
-      if (!id || id.length < 10) { icon.textContent='❌'; msg.textContent='無効なURLです。'; return; }
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id') || '';
+      const isDownload = params.get('download') === '1';
+
+      const icon = document.getElementById('icon');
+      const msg  = document.getElementById('msg');
+      const actions = document.getElementById('actions');
+
+      if (!id || id.length < 10) {
+        icon.textContent = '❌';
+        msg.textContent  = '無効なURLです。';
+        return;
+      }
+
       const { data, error } = await sb.from('restaurant_certificates').select('*').eq('id', id).single();
-      if (error || !data) { icon.textContent='❌'; msg.textContent='認定情報が見つかりません。'; return; }
-      const today = new Date(); today.setHours(0,0,0,0);
+      if (error || !data) {
+        icon.textContent = '❌';
+        msg.textContent  = '認定情報が見つかりません。';
+        return;
+      }
+
+      const today = new Date(); today.setHours(0, 0, 0, 0);
       const isValid = new Date(data.valid_until) >= today;
-      if (!isValid) { icon.textContent='⚠️'; msg.textContent=data.restaurant_name+' の認定有効期限は終了しています。'; return; }
+
+      if (!isValid) {
+        icon.textContent = '⚠️';
+        msg.innerHTML    = `<strong>${data.restaurant_name}</strong><br>の認定有効期限は終了しています。`;
+        return;
+      }
+
+      // ダウンロードモード
+      if (isDownload) {
+        icon.textContent = '📄';
+        msg.innerHTML    = `<strong>${data.restaurant_name}</strong><br>の認定証PDFを生成しています...`;
+        try {
+          const pdfBytes = await generatePDF(data);
+          setProgress('');
+          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement('a');
+          a.href     = url;
+          a.download = `認定証_${data.restaurant_name}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          icon.textContent = '✅';
+          msg.innerHTML    = `<strong>${data.restaurant_name}</strong><br>認定証のダウンロードが完了しました。`;
+          actions.innerHTML = `<a href="${data.redirect_url || '#'}" class="btn" style="margin-right:8px;">店舗ページへ</a><button class="btn" onclick="location.reload()">再ダウンロード</button>`;
+        } catch (e) {
+          icon.textContent = '❌';
+          msg.textContent  = 'PDF生成に失敗しました: ' + e.message;
+          setProgress('');
+        }
+        return;
+      }
+
+      // 通常モード（転送）
       if (data.redirect_url) {
         location.href = data.redirect_url;
       } else {
-        icon.textContent='🏅';
-        msg.innerHTML='<strong>'+data.restaurant_name+'</strong><br>日本野菜ソムリエ協会 認定店<br><br>有効期限: '+new Date(data.valid_until).toLocaleDateString('ja-JP')+'まで';
+        icon.textContent = '🏅';
+        msg.innerHTML    = `<strong>${data.restaurant_name}</strong><br>日本野菜ソムリエ協会 認定店<br><br>有効期限: ${new Date(data.valid_until).toLocaleDateString('ja-JP')}まで`;
       }
     }
+
     load();
   </script>
 </body>
