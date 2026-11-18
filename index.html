@@ -39,8 +39,9 @@
     };
 
     const DEFAULT_LAYOUT = {
-      name:   { x: 83.0, y: 37.8, anchor: 'right'  },
-      number: { x: 72.0, y: 44.8, anchor: 'center' },
+      name1:  { x: 83.0, y: 35.2, anchor: 'right',  fontScale: 1.0 },
+      name2:  { x: 83.0, y: 38.5, anchor: 'right',  fontScale: 1.0 },
+      number: { x: 72.0, y: 44.8, anchor: 'center', fontScale: 1.0 },
       qr:     { x: 37.5, y: 69.0, anchor: 'left'   },
     };
 
@@ -70,7 +71,17 @@
         .select('layout_json')
         .eq('cert_type', cert.cert_type || 'cafe')
         .maybeSingle();
-      const L = layoutData?.layout_json ?? DEFAULT_LAYOUT;
+      // 旧形式（name キー）からの移行も考慮
+      const rawL = layoutData?.layout_json ?? {};
+      const L = {
+        ...DEFAULT_LAYOUT,
+        ...(rawL.name1  ? { name1:  { ...DEFAULT_LAYOUT.name1,  ...rawL.name1  } } : {}),
+        ...(rawL.name2  ? { name2:  { ...DEFAULT_LAYOUT.name2,  ...rawL.name2  } } : {}),
+        ...(rawL.number ? { number: { ...DEFAULT_LAYOUT.number, ...rawL.number } } : {}),
+        ...(rawL.qr     ? { qr:     { ...DEFAULT_LAYOUT.qr,     ...rawL.qr     } } : {}),
+        // 旧形式 name → name1 に移行
+        ...(rawL.name && !rawL.name1 ? { name1: { ...DEFAULT_LAYOUT.name1, x: rawL.name.x, y: rawL.name.y } } : {}),
+      };
 
       setProgress('テンプレートを読み込み中...');
       const canvas = document.createElement('canvas');
@@ -81,29 +92,30 @@
       ctx.drawImage(tmpl, 0, 0);
 
       const W = canvas.width, H = canvas.height;
-
-      // 店舗名（改行対応）
-      const nameFontSize = Math.round(W * 0.042);
-      ctx.font = `bold ${nameFontSize}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
-      ctx.fillStyle = '#222';
-      ctx.textAlign = L.name.anchor;
-      ctx.textBaseline = 'middle';
       const nameFont = `'Hiragino Mincho ProN','Yu Mincho',serif`;
-      const nameLines = cert.restaurant_name.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length > 0);
       const maxNameW = W * 0.52;
-      let nameFontSize = Math.round(W * 0.042);
-      while (nameFontSize > 18) {
-        ctx.font = `bold ${nameFontSize}px ${nameFont}`;
-        if (Math.max(...nameLines.map(l => ctx.measureText(l).width)) <= maxNameW) break;
-        nameFontSize -= 2;
+
+      // 店舗名（1行目・2行目を独立した座標で描画）
+      const rawName = cert.restaurant_name.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const nameLines = rawName.split('\n').filter(l => l.length > 0);
+
+      function drawNameLine(text, Lentry) {
+        const baseSize = Math.round(W * 0.042 * (Lentry.fontScale ?? 1.0));
+        let sz = baseSize;
+        while (sz > 18) {
+          ctx.font = `bold ${sz}px ${nameFont}`;
+          if (ctx.measureText(text).width <= maxNameW) break;
+          sz -= 2;
+        }
+        ctx.font = `bold ${sz}px ${nameFont}`;
+        ctx.fillStyle = '#222';
+        ctx.textAlign = Lentry.anchor;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, W * (Lentry.x / 100), H * (Lentry.y / 100));
       }
-      ctx.font = `bold ${nameFontSize}px ${nameFont}`;
-      const lineHeight = nameFontSize * 1.4;
-      const totalNameH = lineHeight * (nameLines.length - 1);
-      const nameBaseY = H * (L.name.y / 100) - totalNameH / 2;
-      nameLines.forEach((line, i) => {
-        ctx.fillText(line, W * (L.name.x / 100), nameBaseY + i * lineHeight);
-      });
+
+      if (nameLines.length >= 1) drawNameLine(nameLines[0], L.name1);
+      if (nameLines.length >= 2) drawNameLine(nameLines[1], L.name2);
 
       // 認定ナンバー
       if (cert.cert_number) {
