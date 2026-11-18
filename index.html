@@ -93,20 +93,13 @@
 
       const W = canvas.width, H = canvas.height;
       const nameFont = `'Hiragino Mincho ProN','Yu Mincho',serif`;
-      const maxNameW = W * 0.52;
 
       // 店舗名（1行目・2行目を独立した座標で描画）
       const rawName = cert.restaurant_name.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const nameLines = rawName.split('\n').filter(l => l.length > 0);
 
       function drawNameLine(text, Lentry) {
-        const baseSize = Math.round(W * 0.042 * (Lentry.fontScale ?? 1.0));
-        let sz = baseSize;
-        while (sz > 18) {
-          ctx.font = `bold ${sz}px ${nameFont}`;
-          if (ctx.measureText(text).width <= maxNameW) break;
-          sz -= 2;
-        }
+        const sz = Math.round(W * 0.042 * (Lentry.fontScale ?? 1.0));
         ctx.font = `bold ${sz}px ${nameFont}`;
         ctx.fillStyle = '#222';
         ctx.textAlign = Lentry.anchor;
