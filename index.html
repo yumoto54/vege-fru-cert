@@ -82,13 +82,19 @@
 
       const W = canvas.width, H = canvas.height;
 
-      // 店舗名
+      // 店舗名（改行対応）
       const nameFontSize = Math.round(W * 0.042);
       ctx.font = `bold ${nameFontSize}px 'Hiragino Mincho ProN','Yu Mincho',serif`;
       ctx.fillStyle = '#222';
       ctx.textAlign = L.name.anchor;
       ctx.textBaseline = 'middle';
-      ctx.fillText(cert.restaurant_name, W * (L.name.x / 100), H * (L.name.y / 100));
+      const nameLines = cert.restaurant_name.split('\n');
+      const lineHeight = nameFontSize * 1.4;
+      const totalNameH = lineHeight * (nameLines.length - 1);
+      const nameBaseY = H * (L.name.y / 100) - totalNameH / 2;
+      nameLines.forEach((line, i) => {
+        ctx.fillText(line, W * (L.name.x / 100), nameBaseY + i * lineHeight);
+      });
 
       // 認定ナンバー
       if (cert.cert_number) {
