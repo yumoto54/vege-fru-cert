@@ -88,7 +88,7 @@
       ctx.fillStyle = '#222';
       ctx.textAlign = L.name.anchor;
       ctx.textBaseline = 'middle';
-      const nameLines = cert.restaurant_name.split('\n');
+      const nameLines = cert.restaurant_name.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length > 0);
       const lineHeight = nameFontSize * 1.4;
       const totalNameH = lineHeight * (nameLines.length - 1);
       const nameBaseY = H * (L.name.y / 100) - totalNameH / 2;
